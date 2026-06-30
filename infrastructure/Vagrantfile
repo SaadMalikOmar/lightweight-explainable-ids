@@ -1,0 +1,43 @@
+Vagrant.configure("2") do |config|
+  # Host VM for BPF monitoring
+  config.vm.define "host" do |host|
+    host.vm.box = "bento/ubuntu-22.04"
+    host.vm.hostname = "ids-host"
+    host.vm.network "private_network", ip: "192.168.56.10"
+    
+    host.vm.provider "virtualbox" do |v|
+      v.name = "ids-host"
+      v.memory = 1024
+      v.cpus = 1
+    end
+    host.vm.provision "shell", path: "scripts/setup_host.sh"
+  end
+
+  # Honeypot VM for Cowrie
+  config.vm.define "honeypot" do |honeypot|
+    honeypot.vm.box = "bento/ubuntu-22.04"
+    honeypot.vm.hostname = "ids-honeypot"
+    honeypot.vm.network "private_network", ip: "192.168.56.20"
+    
+    honeypot.vm.provider "virtualbox" do |v|
+      v.name = "ids-honeypot"
+      v.memory = 2048
+      v.cpus = 1
+    end
+    honeypot.vm.provision "shell", path: "scripts/setup_honeypot.sh"
+  end
+
+  # Attacker VM
+  config.vm.define "attacker" do |attacker|
+    attacker.vm.box = "bento/ubuntu-22.04"
+    attacker.vm.hostname = "ids-attacker"
+    attacker.vm.network "private_network", ip: "192.168.56.30"
+    
+    attacker.vm.provider "virtualbox" do |v|
+      v.name = "ids-attacker"
+      v.memory = 1024
+      v.cpus = 1
+    end
+    attacker.vm.provision "shell", path: "scripts/setup_attacker.sh"
+  end
+end
