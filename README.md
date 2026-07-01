@@ -1,78 +1,77 @@
-# Lightweight Explainable IDS for Edge Environments
+# Lightweight, Explainable Intrusion Detection System
 
-Final Year Project (CI6600) evidence repository: a lightweight, explainable
-Intrusion Detection System (IDS) for resource-constrained edge / IoT
-environments. It pairs a deterministic, session-level rule engine with an
-Isolation Forest anomaly detector, correlates kernel-level eBPF telemetry with
-Cowrie honeypot activity, and is validated against the public IoT-23 dataset.
+An eBPF-based host intrusion detection system that pairs kernel-level telemetry with honeypot deception and outputs **plain-English alerts** aimed at junior SOC analysts. A final-year project, awarded **91% (A+)**.
 
-**Author:** Malik Omar
+📄 **[Read the full project report (PDF)](eBPF-IDS-Project-Report.pdf)**
 
-## Highlights
+> Detect an SSH brute-force and post-compromise activity in an isolated lab, and explain *why* an alert fired in language a first-line analyst can act on, without the overhead of a heavy monitoring agent.
 
-- **Deterministic detection engine** with explainable, session-level metrics
-- **ML anomaly detection** using Isolation Forest (scikit-learn)
-- **eBPF + honeypot correlation** linking kernel process events (execsnoop) to Cowrie SSH sessions
-- **HTTP IoT-hub decoy** to attract and log application-layer probing
-- **External validation** on IoT-23 with per-flow balanced sampling (AUC = 0.74)
-- **Reproducible lab** defined as a 3-node Vagrant environment
+---
 
-## Repository structure
+## Why this project
+
+Most host monitoring is either noisy, heavy, or opaque. This project explores whether **eBPF** (kernel-level tracing with minimal overhead) combined with a **honeypot** (high-signal deception) can produce detections that are both low-cost and genuinely explainable.
+
+## Architecture
 
 ```
-scripts/                  Core detection & analysis
-  ids_rules_v2.py           Deterministic detection engine (session-level metrics)
-  iot23_validation.py       IoT-23 external validation (per-flow balanced sampling)
-  ebpf_correlator.py        eBPF + Cowrie event correlation
-  http_decoy.py             HTTP IoT-hub decoy service
-  performance_benchmark.py  Resource-overhead measurement
-  print_combined_benchmark.py
-  run_ebpf_monitors.sh      eBPF monitoring launcher
-  detection_engine/         dashboard.py (Flask), ids_rules.py, ml_engine.py
-
-infrastructure/           Reproducible lab
-  Vagrantfile               3-node lab (ids-host, ids-honeypot, ids-attacker)
-  setup_host.sh / setup_honeypot.sh / setup_attacker.sh
-
-logs/                     Captured evidence
-  cowrie/                   Honeypot JSON logs (original, fresh, combined)
-  ebpf/                     execsnoop kernel-level process logs
-
-results/                  IoT-23 validation output (v2 per-flow, original per-IP)
-figures/                  Figures 1-27 referenced in the report
+          ┌──────────────────────────────────────────────┐
+          │            Isolated lab (VirtualBox)          │
+          │                                               │
+  ┌───────────────┐    SSH brute-force /    ┌───────────────┐
+  │  Attacker      │───  interactive cmds ──▶│  Honeypot      │
+  │  (Kali Linux)  │                         │  (Cowrie SSH)  │
+  │  Hydra, manual │                         │  → JSON events │
+  └───────────────┘                         └───────┬───────┘
+                                                     │
+  ┌───────────────┐   eBPF (BCC): execsnoop,         │
+  │ Monitored host│   tcplife → process +            │
+  │  eBPF sensors  │   network telemetry              │
+  └───────┬───────┘                                   │
+          │                                           │
+          ▼                                           ▼
+      ┌───────────────────────────────────────────────────┐
+      │   Python detection engine (rule-based)             │
+      │   parses telemetry + honeypot JSON →               │
+      │   flags brute-force + suspicious commands →        │
+      │   plain-English alerts for junior analysts         │
+      └───────────────────────────────────────────────────┘
 ```
 
-## Environment
+The three-node lab is provisioned **as code** with HashiCorp Vagrant + Bash and version-controlled in Git, so the whole environment is reproducible.
 
-- VirtualBox 7.1, Vagrant 2.4.9, Ubuntu 22.04 LTS
-- Python 3.10, scikit-learn 1.6.1, Flask 3.1.0, NumPy
-- Cowrie 2.9.x, bcc-tools (`execsnoop-bpfcc`, `tcpconnect-bpfcc`)
+## Key features
 
-## Quick start
+- **Kernel-level visibility, low overhead** using eBPF/BCC tools (`execsnoop`, `tcplife`) to trace process execution and network connections.
+- **Honeypot deception** with a Cowrie SSH honeypot capturing attacker credentials and post-login commands as structured JSON.
+- **Rule-based detection engine** in Python that correlates telemetry, flags brute-force patterns and suspicious commands.
+- **Explainable alerts** written in plain English so a junior analyst knows what happened and what to do next.
+- **Benchmarked overhead** — CPU and memory measured across idle and active-attack states.
 
-```bash
-# 1. Install Python dependencies
-pip install -r requirements.txt
+## Tech stack
 
-# 2. Boot the 3-node lab (from infrastructure/)
-cd infrastructure && vagrant up
+`Python` · `eBPF (BCC)` · `Cowrie` · `Kali Linux` · `VirtualBox` · `HashiCorp Vagrant` · `Bash` · `Git`
 
-# 3. Run the detection engine on a Cowrie log
-python3 scripts/ids_rules_v2.py <log.json> <output>
+## Results
 
-# 4. Run IoT-23 external validation
-python3 scripts/iot23_validation.py --data <iot23_file> --sweep
+- Detected Hydra SSH brute-force and interactive post-login activity end to end.
+- Measured CPU/memory overhead in idle vs active-attack states to show the eBPF approach stays lightweight.
+- Produced analyst-readable alerts rather than raw logs.
+- Dissertation grade: **91% (A+)**.
 
-# 5. Launch the Flask dashboard
-python3 scripts/detection_engine/dashboard.py
-```
+_Architecture diagrams, sample alerts, and benchmark results are in the [full project report](eBPF-IDS-Project-Report.pdf)._
 
-## Notes on the data
+## Responsible use
 
-All IP addresses in the captured logs are private lab addresses (192.168.56.0/24).
-Credentials shown in the Cowrie logs are honeypot capture data (attacker guesses
-against the decoy), not real secrets.
+All attack simulation ran inside a **fully network-isolated** lab. The project explicitly addressed **GDPR** and the **Computer Misuse Act 1990** through isolation. This repository is for educational and defensive research only.
 
-## License
+## Roadmap / future work
 
-Released under the [MIT License](LICENSE).
+- Replace rule-based detection with a scored/ML approach.
+- Add more eBPF sensors (file integrity, privilege escalation).
+- Ship alerts to a SIEM instead of stdout.
+
+## Author
+
+Saad Omar, BSc (Hons) Cyber Security & Digital Forensics, First Class (Kingston University).
+LinkedIn: https://linkedin.com/in/muhammad-saad-omar-299a162b3
